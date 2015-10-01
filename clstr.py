@@ -17,6 +17,9 @@ from collections import deque
 import logging
 
 
+__version__ = "0.1.0"
+
+
 class Node(Thread):
     """A compute node in the pool.
     
@@ -63,6 +66,20 @@ class Node(Thread):
                      stdout=open("/dev/null", "w"),
                      stderr=open("/dev/null", "w")).wait() == 0
     
+    def execute_job(self, job):
+        """Execute a job on this host and return True if it succeeded."""
+        ssh = Popen(["ssh",
+                     "-o", "ConnectTimeout=10",
+                     "-o", "ConnectionAttempts=1",
+                     self.hostname,
+                     job.command],
+                    stdin=job.stdin,
+                    stdout=job.stdout,
+                    stderr=job.stderr,
+                    close_fds=False)
+        
+        return ssh.wait() == 0
+    
     def run(self):
         """The thread which manages the node."""
         # Initially make sure we can ping the host first
@@ -78,17 +95,7 @@ class Node(Thread):
             if self.node_uses_remaining is not None:
                 self.node_uses_remaining -= 1
             
-            ssh = Popen(["ssh",
-                         "-o", "ConnectTimeout=10",
-                         "-o", "ConnectionAttempts=1",
-                         self.hostname,
-                         job.command],
-                        stdin=job.stdin,
-                        stdout=job.stdout,
-                        stderr=job.stderr,
-                        close_fds=False)
-            
-            if ssh.wait() == 0:
+            if self.execute_job(job):
                 self.manager._job_finished(self)
             else:
                 self.manager._node_failed(self)
@@ -479,9 +486,11 @@ def main():
             job_stderr = open(args.stderr, "w")
         
         # Add all nodes to the cluster
+        some_nodes_specified = False
         for hostnames in args.node:
             for hostname in hostnames:
                 m.add_node(hostname)
+                some_nodes_specified = True
         for filenames in args.node_file:
             for filename in filenames:
                 with open(filename, "r") as f:
@@ -490,14 +499,19 @@ def main():
                         line = line.strip()
                         if line:
                             m.add_node(line)
+                            some_nodes_specified = True
+        
+        if not some_nodes_specified:
+            parser.error("At least one compute node must be specified "
+                         "(see --node or --node-file)")
         
         node_count_digits = (int(math.log(m.num_idle_nodes, 10)) + 1
                              if m.num_idle_nodes > 0 else 1)
         
         # Add all jobs to the cluster
         if (args.job or args.job_file) and args.on_each_node:
-            args.error("--on-each-node may not be used with "
-                       "--job or --job-file.")
+            parser.error("--on-each-node may not be used with "
+                         "--job or --job-file.")
         num_jobs = 0
         if args.on_each_node:
             # Add one job per node so that all nodes are sure to run the job
@@ -527,6 +541,9 @@ def main():
                                       stdin=None,
                                       stdout=job_stdout,
                                       stderr=job_stderr)
+        if not some_nodes_specified:
+            parser.error("At least one job must be specified "
+                         "(see --job, --job-file or --on-each-node)")
         
         job_count_digits = int(math.log(num_jobs, 10)) + 1 if num_jobs > 0 else 1
         
