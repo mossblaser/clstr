@@ -553,7 +553,7 @@ def main():
                     with open(args.active_nodes[0], "w") as f:
                         with m.lock:
                             for node, job in m.active_nodes.items():
-                                f.write("{}: {}\n".format(node.hostname, job))
+                                f.write("%s: %s\n"%(node.hostname, job))
                 
                 # Wait for the next change in state of the cluster manager
                 if not m.wait():
