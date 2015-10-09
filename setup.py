@@ -13,7 +13,8 @@ setup(
     # Metadata for PyPi
     url="https://github.com/mossblaser/clstr",
     author="Jonathan Heathcote",
-    description="A quick'n'dirty cluster manager.",
+    author_email="mail@jhnet.co.uk",
+    description="A quick'n'dirty cluster manager for quick'n'dirty clusters.",
     license="GPLv2",
 
     # Requirements
