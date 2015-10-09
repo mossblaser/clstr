@@ -62,9 +62,9 @@ class Node(Thread):
         # give up after waiting 1 second for a response. This is perhaps a bit
         # harsh but it enables bad hosts to get quickly eliminated from the
         # pool quickly.
-        return Popen(["ping", "-c", "1", "-w", "1", self.hostname],
-                     stdout=open("/dev/null", "w"),
-                     stderr=open("/dev/null", "w")).wait() == 0
+        with open("/dev/null", "w") as f:
+            return Popen(["ping", "-c", "1", "-w", "1", self.hostname],
+                         stdout=f, stderr=f).wait() == 0
     
     def execute_job(self, job):
         """Execute a job on this host and return True if it succeeded."""
@@ -141,6 +141,9 @@ class Job(object):
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
+    
+    def __repr__(self):
+        return "<%r %r>"%(self.__class__.__name__, self.command)
 
 
 class Manager(object):
@@ -389,6 +392,9 @@ def main():
     parser = argparse.ArgumentParser(
         description="A quick'n'dirty cluster manager.")
     
+    parser.add_argument("--version", "-V", action="version",
+                        version="%(prog)s v" + str(__version__))
+    
     node_specs = parser.add_argument_group(
         title="node specification arguments",
         description="Arguments which specify the hostnames of the set of "
@@ -416,9 +422,8 @@ def main():
     
     job_specification = parser.add_argument_group(
         title="job specification arguments",
-        description="Definition of the jobs to execute on the cluster. If no "
-                    "argument is given, jobs are taken one-per-line from "
-                    "standard input. A job is a valid command-line snippet "
+        description="Definition of the jobs to execute on the cluster. A "
+                    "job is a valid command-line snippet "
                     "which will be executed via SSH on a compute node. If a "
                     "job exits with a non-zero status (it fails), it will be "
                     "retried on another node and the node it failed on will "
